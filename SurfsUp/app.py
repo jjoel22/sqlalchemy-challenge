@@ -53,9 +53,6 @@ def welcome():
 
 @app.route("/api/v1.0/precipitation")
 def precipitation():
-     # Create our session (link) from Python to the DB
-    session = Session(engine)
-
     """Return a list of passenger data including the name, age, and sex of each passenger"""
     one_ago = dt.date(2017,8,23)-dt.timedelta(days=365)
 
@@ -63,63 +60,57 @@ def precipitation():
     prcp_data = session.query(Measurement.date, Measurement.prcp).filter(Measurement.date>=one_ago).all()
 
     session.close()
-    
+    # Dict with date as the key and prcp as the value
+    precip = {date: prcp for date, prcp in prcp_data}
+    return jsonify(precip)
+
+
 @app.route("/api/v1.0/stations")
 def stations():
-     # Create our session (link) from Python to the DB
-    session = Session(engine)
+    
 
 #Return a JSON list of stations from the dataset.
-
-
-
-
-Return a JSON list of stations from the dataset.
+    station_data = session.query(Station.station).all()
+    session.close()
+    stations=list(np.ravel(station_data))
+    return jsonify(stations=stations)
     
 @app.route("/api/v1.0/tobs")
 def tobs():
      
+    prev_year = dt.date(2017,8,23)-dt.timedelta(days=365)
     
+#query the database
+
+    result = session.query(Measurement.tobs).\
+    filter(Measurement.station== 'USC00519281').\
+    filter(Measurement.date>=prev_year).all()
     
+    session.close()
+    
+    temps = list(np.ravel(result))
+    
+    return jsonify(temps=temps)
     
 @app.route("/api/v1.0/temp/<start>")
 @app.route("/api/v1.0/temp/<start>/<end>")
-def stats(start=None, end=None):
+def end(start=None, end=None):
     """Return TMIN, TAVG, TMAX."""
+    selection = session.query(func.min(Measurement.tobs), func.avg(Measurement.tobs), func.max(Measurement.tobs))
+    parse_date = lambda d: dt.datetime.strptime(d, "%m%d%Y")
+    if not end:
+    
+        
+        result = session.query(*selection).filter(Measurement.date >= parse_date(start)).all()
+        session.close()  
+        temps = list(np.ravel(result))
+    
+        return jsonify(temps)   
+    start, end = [parse_date(i) for i in [start, end]]
+    result = session.query(*selection).filter(Measurement.date >= start).filter(Measurement.date >= end).all()
+    session.close()  
+    temps = list(np.ravel(result))
 
-
-    # Create a dictionary from the row data and append to a list of all_passengers
-    all_passengers = []
-    for date, prcp in prcp_data:
-        passenger_dict = {}
-        passenger_dict["date"] = date
-        passenger_dict["prcp"] = prcp
-        all_passengers.append(passenger_dict)
-
-    return jsonify(all_passengers)
-
-@app.route("/api/v1.0/passengers")
-def passengers():
-    # Create our session (link) from Python to the DB
-    session = Session(engine)
-
-    """Return a list of passenger data including the name, age, and sex of each passenger"""
-    # Query all passengers
-    results = session.query(Passenger.name, Passenger.age, Passenger.sex).all()
-
-    session.close()
-
-    # Create a dictionary from the row data and append to a list of all_passengers
-    all_passengers = []
-    for name, age, sex in results:
-        passenger_dict = {}
-        passenger_dict["name"] = name
-        passenger_dict["age"] = age
-        passenger_dict["sex"] = sex
-        all_passengers.append(passenger_dict)
-
-    return jsonify(all_passengers)
-
-
+    return jsonify(temps=temps)                   
 if __name__ == '__main__':
     app.run(debug=True)
